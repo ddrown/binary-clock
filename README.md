@@ -10,16 +10,15 @@ Hardware:
 
 Pins:
 
-PA5 - LCD SPI CLK
-PA7 - LCD SPI MOSI
-PA4 - LCD CS
-PC13 - LCD RES
-PA3 - LCD RS/DC
-3.3V - LCD VCC
-GND - LCD GND
-
-PA10 - UART TX (just needed to set the time)
-PA9 - UART RX (just needed to set the time)
+* PA5 - LCD SPI CLK
+* PA7 - LCD SPI MOSI
+* PA4 - LCD CS
+* PC13 - LCD RES
+* PA3 - LCD RS/DC
+* 3.3V - LCD VCC
+* GND - LCD GND
+* PA10 - UART TX (just needed to set the time)
+* PA9 - UART RX (just needed to set the time)
 
 LCD + processor uses around 40mA
 
