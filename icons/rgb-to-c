@@ -1,0 +1,22 @@
+#!/usr/bin/perl
+
+print "const uint16_t ".$ARGV[0]."[] PROGMEM = {\n";
+
+my($i,$words) = (0,0);
+while(sysread(STDIN, my $pixel_bytes, 3) == 3) {
+  my($r,$g,$b) = unpack("CCC", $pixel_bytes);
+  my $pixel = (($r & 0xF8) << 8) | (($g & 0xFC) << 3) | ($b >> 3);
+  $pixel = ($pixel & 0xFF) << 8 | ($pixel & 0xFF00) >> 8; # byte swap
+  print $pixel;
+  $i++;
+  if($i == 16) {
+    $i = 0;
+    print ",\n";
+  } else {
+    print ",";
+  }
+  $words++;
+}
+
+print "};\n";
+print "//w=$words\n";

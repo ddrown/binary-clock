@@ -13,12 +13,15 @@
 
 #include "settings.h" // see this file to change the settings
 
+#include "icons/off.h"
+#include "icons/on_i.h"
+
 // local port to listen for UDP packets, TODO: randomize and switch
 #define LOCAL_NTP_PORT 2390
 IPAddress timeServerIP;
 NTPClient ntp;
 
-// full screen: ~300-400ms, tens seconds: ~52ms, ones seconds: ~30ms
+// full screen+text: ~72ms, full screen: ~11ms, tens seconds: ~2ms, ones seconds: ~1ms
 #define SPI1_CLK   D5
 #define SPI1_MISO  D6
 #define SPI1_MOSI  D7
@@ -53,6 +56,7 @@ void wifi_setup() {
   tft.println();
   SERIALPORT.println();
 
+  // TODO: show wifi strength
   tft.println("WiFi connected");
   SERIALPORT.println("WiFi connected");
   tft.println("IP address: ");
@@ -105,14 +109,12 @@ void refresh_text(const char *tzname) {
   tft.print("HOUR   MINUTE  SECOND");
 }
 
-// TODO: use bitmaps?
 void draw_bits(uint16_t value, uint16_t maxten, uint8_t x, uint8_t y) {
   for(int8_t i = maxten; i >= 0; i--) {
-    tft.drawCircle(x, y + (3-i)*16, 8, ST7735_WHITE);
     if(value & (1 << i)) {
-      tft.fillCircle(x, y + (3-i)*16, 6, ST7735_GREEN);
+      tft.PixelArray(x, y + (3-i)*16, 16, 16, on_i);
     } else {
-      tft.fillCircle(x, y + (3-i)*16, 6, ST7735_BLACK);
+      tft.PixelArray(x, y + (3-i)*16, 16, 16, off);
     }
   }
 }
@@ -137,27 +139,27 @@ void time_print(time_t now, const char *tzname) {
     runonce = 0;
     
     // update seconds first because otherwise they are updated ~300ms late
-    ones(second(now), 114, 90);   
-    tens(second(now), 2, 96, 90);
-    ones(minute(now), 70, 90);
-    tens(minute(now), 2, 52, 90);
-    ones(hour(now), 26, 90);
-    tens(hour(now), 1, 8, 90);
+    ones(second(now), 106, 82);   
+    tens(second(now), 2, 88, 82);
+    ones(minute(now), 62, 82);
+    tens(minute(now), 2, 44, 82);
+    ones(hour(now), 18, 82); // TODO: 12/24 hour modes
+    tens(hour(now), 1, 0, 82);
 
-    tens(day(now), 1, 96, 8);
-    ones(day(now), 114, 8);
-    tens(month(now), 0, 52, 8);
-    ones(month(now), 70, 8);
-    tens(year(now), 3, 8, 8);
-    ones(year(now), 26, 8);     
+    tens(day(now), 1, 88, 0);
+    ones(day(now), 106, 0);
+    tens(month(now), 0, 44, 0);
+    ones(month(now), 62, 0);
+    tens(year(now), 3, 0, 0);
+    ones(year(now), 18, 0);     
   } else {
     if(second(now) % 10) {
       // only the ones digit in seconds changed
     } else { 
       // both the ones and tens digit changed
-      tens(second(now), 2, 96, 90);
+      tens(second(now), 2, 88, 82);
     }
-    ones(second(now), 114, 90);
+    ones(second(now), 106, 82);
   }
   //SERIALPORT.println(second(now));
 }
@@ -211,14 +213,19 @@ void loop() {
   adjustClockSpeed(21, -1); // TODO: do this properly.  sets to 47.619ppm slow
   
   while(1) {
+    //uint32_t startms, endms;
     do {
       delay(5); // TODO: sleep properly instead of spinning fast
       now_t = now();
     } while(now_t == last_t); // loop until the clock changes
     last_t = now_t;
+    //startms = millis();
     // TODO: configure timezone
     local = TIMEZONE.toLocal(now_t, &tcr);
     time_print(local, tcr->abbrev);
+    /*endms = millis();
+    SERIALPORT.print("LCD took ");
+    SERIALPORT.println(endms-startms); */
 
     if((now_t > next_ntp) && ((second(local) % 10) != 0)) { // repoll on seconds not ending in 0
       ntp_loop(false);
