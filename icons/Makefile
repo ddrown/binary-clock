@@ -1,4 +1,4 @@
-all: off.h on_i.h
+all: off.h on_i.h birthday.h blueon.h haloween.h independance_day.h off.h redon.h thanksgiving.h valentines.h candy_cane.h christmas_tree.h firework.h santa.h
 
 .PHONY: all
 

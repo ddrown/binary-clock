@@ -15,6 +15,56 @@
 
 #include "icons/off.h"
 #include "icons/on_i.h"
+#include "icons/blueon.h"
+#include "icons/redon.h"
+#include "icons/birthday.h"
+#include "icons/haloween.h"
+#include "icons/independance_day.h"
+#include "icons/thanksgiving.h"
+#include "icons/valentines.h"
+#include "icons/candy_cane.h"
+#include "icons/christmas_tree.h"
+#include "icons/santa.h"
+#include "icons/firework.h"
+
+struct holiday_icon {
+  const uint16_t *icon;
+  uint8_t month;
+  uint8_t day;
+  boolean enabled;
+};
+
+// rules like "the fourth thursday" are encoded as WEEKDAY_RULE + DAY
+// where DAY is the day of the month if the first day was Sunday
+#define WEEKDAY_RULE 40
+#define FIRST_SUNDAY WEEKDAY_RULE+1
+#define FIRST_MONDAY WEEKDAY_RULE+2
+#define FIRST_TUESDAY WEEKDAY_RULE+3
+#define FIRST_WEDNESDAY WEEKDAY_RULE+4
+#define FIRST_THURSDAY WEEKDAY_RULE+5
+#define FIRST_FRIDAY WEEKDAY_RULE+6
+#define FIRST_SATURDAY WEEKDAY_RULE+7
+#define SECOND_THURSDAY WEEKDAY_RULE+5+7
+#define THIRD_THURSDAY WEEKDAY_RULE+5+14
+#define FOURTH_THURSDAY WEEKDAY_RULE+5+21
+#define FIFTH_SUNDAY WEEKDAY_RULE+1+28
+
+// TODO: settings to turn these off/on and configure day
+struct holiday_icon icons[] = {
+  { .icon = on_i, .month = 0, .day = 0, .enabled = true},
+  { .icon = blueon, .month = 0, .day = 0, .enabled = false},
+  { .icon = redon, .month = 0, .day = 0, .enabled = false},
+  { .icon = firework, .month = 1, .day = 1, .enabled = true},
+  { .icon = valentines, .month = 2, .day = 14, .enabled = true},
+  { .icon = birthday, .month = 9, .day = 28, .enabled = true},
+  { .icon = independance_day, .month = 7, .day = 4, .enabled = true},
+  { .icon = haloween, .month = 10, .day = 31, .enabled = true},
+  { .icon = thanksgiving, .month = 11, .day = FOURTH_THURSDAY, .enabled = true},
+  { .icon = christmas_tree, .month = 12, .day = 24, .enabled = true},
+  { .icon = santa, .month = 12, .day = 25, .enabled = true},
+  { .icon = candy_cane, .month = 12, .day = 25, .enabled = false},
+};
+uint8_t icons_index = 0;
 
 // local port to listen for UDP packets, TODO: randomize and switch
 #define LOCAL_NTP_PORT 2390
@@ -92,7 +142,7 @@ void setup() {
 
   tft.println("Delayed start");
   SERIALPORT.println("Delayed start");
-  for(uint8_t i = 0; i < 10; i++) {
+  for(uint8_t i = 0; i < 5; i++) {
     tft.print(".");
     SERIALPORT.print(".");
     delay(1000);
@@ -112,7 +162,7 @@ void refresh_text(const char *tzname) {
 void draw_bits(uint16_t value, uint16_t maxten, uint8_t x, uint8_t y) {
   for(int8_t i = maxten; i >= 0; i--) {
     if(value & (1 << i)) {
-      tft.PixelArray(x, y + (3-i)*16, 16, 16, on_i);
+      tft.PixelArray(x, y + (3-i)*16, 16, 16, icons[icons_index].icon);
     } else {
       tft.PixelArray(x, y + (3-i)*16, 16, 16, off);
     }
@@ -129,6 +179,26 @@ void ones(uint16_t value, uint8_t x, uint8_t y) {
   draw_bits(value, 3, x, y);
 }
 
+void set_icons_index(time_t now) {
+  for(uint8_t i = 0; i < sizeof(icons)/sizeof(icons[0]); i++) {
+    if(icons[i].enabled && icons[i].month == month(now)) {
+      if(icons[i].day > WEEKDAY_RULE) { // happens on a set day of the week
+        uint8_t find_day = icons[i].day - WEEKDAY_RULE;  // find_day is a month starting on a sunday
+        uint8_t want_wday = (find_day - 1) % 7; // sunday = 0, saturday = 6
+        uint8_t want_week = (find_day - 1) / 7;
+        uint8_t this_week = (day(now)-1) / 7;
+        if(this_week == want_week && want_wday == weekday(now)-1) {
+          icons_index = i;
+          return;
+        }
+      } else if(icons[i].day == day(now)) { // happens on a set day
+        icons_index = i;
+        return;
+      }
+    }
+  }
+}
+
 void time_print(time_t now, const char *tzname) {
   static uint8_t runonce = 1;
   if(runonce) {
@@ -137,8 +207,10 @@ void time_print(time_t now, const char *tzname) {
   }
   if(runonce || second(now) == 0) { // reprint everything at the top of the minute
     runonce = 0;
+
+    set_icons_index(now);
     
-    // update seconds first because otherwise they are updated ~300ms late
+    // update seconds first because they're the most critical
     ones(second(now), 106, 82);   
     tens(second(now), 2, 88, 82);
     ones(minute(now), 62, 82);
