@@ -1,7 +1,7 @@
 #include <ESP8266WiFi.h>
 
 // TODO: is a special version needed anymore?
-#include <Adafruit_GFX_AS.h>    // Core graphics library
+#include <Adafruit_GFX.h>    // Core graphics library
 // the ESP8266 version of the ST7735 library: https://github.com/ddrown/Adafruit-ST7735-Library
 #include <Adafruit_ST7735.h> // Hardware-specific library
 // millisecond precision clock library: https://github.com/ddrown/Arduino_Clock
