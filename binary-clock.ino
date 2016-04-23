@@ -85,7 +85,7 @@ Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS,  TFT_DC, TFT_RST);
 void tft_setup() {
   tft.initR(INITR_BLACKTAB);
   tft.fillScreen(ST7735_BLACK);
-  tft.setRotation(0);
+  tft.setRotation(0); // TODO: configure rotation
   tft.setTextSize(1);
   tft.setTextWrap(false);
   tft.setTextColor(ST7735_WHITE);  
@@ -233,13 +233,12 @@ void time_print(time_t now, const char *tzname) {
     }
     ones(second(now), 106, 82);
   }
-  //SERIALPORT.println(second(now));
 }
 
 struct timems startTS;
 void ntp_loop(bool ActuallySetTime) {
   PollStatus NTPstatus;
-  
+
   ntp.sendNTPpacket(timeServerIP);
 
   while((NTPstatus = ntp.poll_reply(ActuallySetTime)) == NTP_NO_PACKET) { // wait until we get a response
@@ -277,31 +276,55 @@ void ntp_loop(bool ActuallySetTime) {
 
 void loop() {
   TimeChangeRule *tcr;
-  time_t now_t = 1, last_t = 0, local, next_ntp;
+  time_t last_t = 0, local, next_ntp;
 
   ntp_loop(true); // set time, TODO: what if this fails?
   next_ntp = now() + NTP_INTERVAL;
   now_ms(&startTS);
-  adjustClockSpeed(21, -1); // TODO: do this properly.  sets to 47.619ppm slow
   
   while(1) {
-    //uint32_t startms, endms;
-    do {
-      delay(5); // TODO: sleep properly instead of spinning fast
-      now_t = now();
-    } while(now_t == last_t); // loop until the clock changes
-    last_t = now_t;
+    struct timems nowTS;
+    now_ms(&nowTS);
+    if(nowTS.tv_sec == last_t) {
+      struct timems afterSleepTS;
+      uint32_t sleeptime = 1000 - nowTS.tv_msec;  // sleep till next second
+      delay(sleeptime);
+      now_ms(&afterSleepTS);
+      if(
+        ((afterSleepTS.tv_sec == nowTS.tv_sec) && (afterSleepTS.tv_msec < 990)) || 
+        (afterSleepTS.tv_sec > nowTS.tv_sec+1) ||
+        (afterSleepTS.tv_msec > 100)
+        ) { // print a warning if we slept too long or too short
+        SERIALPORT.print("unexpected return from sleep! before (");
+        SERIALPORT.print(nowTS.tv_sec);
+        SERIALPORT.print("s ");
+        SERIALPORT.print(nowTS.tv_msec);
+        SERIALPORT.print("ms) after (");
+        SERIALPORT.print(afterSleepTS.tv_sec);
+        SERIALPORT.print("s ");
+        SERIALPORT.print(afterSleepTS.tv_msec);
+        SERIALPORT.print("ms) sleeptime ");
+        SERIALPORT.println(sleeptime);
+      }
+    } else { // in case of wierdness
+      SERIALPORT.print("now(");
+      SERIALPORT.print(nowTS.tv_sec);
+      SERIALPORT.print(") != last(");
+      SERIALPORT.print(last_t);
+      SERIALPORT.println(")");
+    }
+    last_t = now();
     //startms = millis();
     // TODO: configure timezone
-    local = TIMEZONE.toLocal(now_t, &tcr);
+    local = TIMEZONE.toLocal(last_t, &tcr);
     time_print(local, tcr->abbrev);
     /*endms = millis();
     SERIALPORT.print("LCD took ");
     SERIALPORT.println(endms-startms); */
 
-    if((now_t > next_ntp) && ((second(local) % 10) != 0)) { // repoll on seconds not ending in 0
+    if((last_t > next_ntp) && ((second(local) % 10) != 0)) { // repoll on seconds not ending in 0
       ntp_loop(false);
-      next_ntp = now_t + NTP_INTERVAL;
+      next_ntp = last_t + NTP_INTERVAL;
     }
   }
 }
