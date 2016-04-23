@@ -1,25 +1,27 @@
 # binary-clock
 
-Depends on the stm32duino environment
+Depends on the esp8266 Arduino environment
 
-Depends on this ST7735 library: https://github.com/KenjutsuGH/Adafruit-ST7735-Library
+Depends on these libraries:
+[the ESP8266 version of the ST7735 library](https://github.com/ddrown/Adafruit-ST7735-Library)
+[millisecond precision clock library](https://github.com/ddrown/Arduino_Clock)
+[Timezone library ported to ESP8266](https://github.com/ddrown/Timezone)
+[ESP8266 NTP client with millisecond precision](https://github.com/ddrown/Arduino_NTPClient)
 
 Hardware:
-* STM32F103 - processor
+* ESP8266 - processor
 * ST7735 based LCD board
 
-Pins:
+Pins (NodeMCU names):
 
-* PA5 - LCD SPI CLK
-* PA7 - LCD SPI MOSI
-* PA4 - LCD CS
-* PC13 - LCD RES
-* PA3 - LCD RS/DC
+* D5 - LCD SPI CLK
+* D7 - LCD SPI MOSI
+* D8 - LCD CS
+* D2 - LCD RES
+* D1 - LCD RS/DC
 * 3.3V - LCD VCC
 * GND - LCD GND
-* PA10 - UART TX (just needed to set the time)
-* PA9 - UART RX (just needed to set the time)
 
-LCD + processor uses around 40mA
+LCD + processor uses around 100mA on startup, ~25mA while running
 
-screenshot: https://www.youtube.com/watch?v=QE03CFNgCjA
+[pictures/videos](https://blog.dan.drown.org/binary-clock/)
