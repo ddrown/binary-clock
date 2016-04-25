@@ -7,6 +7,7 @@ Depends on these libraries:
 [millisecond precision clock library](https://github.com/ddrown/Arduino_Clock)
 [Timezone library ported to ESP8266](https://github.com/ddrown/Timezone)
 [ESP8266 NTP client with millisecond precision](https://github.com/ddrown/Arduino_NTPClient)
+[rate adjustment of the local clock from offset measurements](https://github.com/ddrown/Arduino_ClockPID)
 
 Hardware:
 * ESP8266 - processor

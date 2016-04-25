@@ -1,6 +1,5 @@
 #include <ESP8266WiFi.h>
 
-// TODO: is a special version needed anymore?
 #include <Adafruit_GFX.h>    // Core graphics library
 // the ESP8266 version of the ST7735 library: https://github.com/ddrown/Adafruit-ST7735-Library
 #include <Adafruit_ST7735.h> // Hardware-specific library
@@ -10,6 +9,8 @@
 #include <Timezone.h>
 // ESP8266 NTP client with millisecond precision: https://github.com/ddrown/Arduino_NTPClient
 #include <NTPClient.h>
+// ClockPID calculates the rate adjustment the local clock needs based on offset measurements. https://github.com/ddrown/Arduino_ClockPID
+#include <ClockPID.h>
 
 #include "settings.h" // see this file to change the settings
 
@@ -235,9 +236,10 @@ void time_print(time_t now, const char *tzname) {
   }
 }
 
-struct timems startTS;
 void ntp_loop(bool ActuallySetTime) {
   PollStatus NTPstatus;
+  static struct timems startLocalTS = {.tv_sec = 0};
+  static struct timems startRemoteTS = {.tv_sec = 0};
 
   ntp.sendNTPpacket(timeServerIP);
 
@@ -248,33 +250,64 @@ void ntp_loop(bool ActuallySetTime) {
   if (NTPstatus == NTP_TIMEOUT) {
     SERIALPORT.println("NTP client timeout");
   } else if(NTPstatus == NTP_PACKET) {
-    struct timems nowTS;
+    struct timems nowTS, remoteTS;
     uint32_t ms_delta;
     int32_t ppm_error;
     now_ms(&nowTS);
-    
-    int32_t offset = ntp.getLastOffset();
+
+    ms_delta = ts_interval(&startLocalTS, &nowTS);
+    ntp.getRemoteTS(&remoteTS);
+    if((startLocalTS.tv_sec == 0) || (ms_delta > 2140000000)) {
+      startLocalTS.tv_sec = nowTS.tv_sec;
+      startLocalTS.tv_msec = nowTS.tv_msec;
+      startLocalTS.raw_millis = nowTS.raw_millis;
+      startRemoteTS.tv_sec = remoteTS.tv_sec;
+      startRemoteTS.tv_msec = remoteTS.tv_msec;
+      startRemoteTS.raw_millis = remoteTS.raw_millis;
+      ClockPID.reset_clock();
+      SERIALPORT.println("reset clock");
+      ms_delta = 0;
+    }
+
+    int32_t offset = ntp.getLastOffset_RTT();
+    int32_t raw_offset = ts_interval(&startRemoteTS, &remoteTS) - ms_delta;
     uint32_t rtt = ntp.getLastRTT();
+    float clock_error = ClockPID.add_sample(ms_delta, raw_offset, offset);
+    adjustClockSpeed_ppm(clock_error);
+
     SERIALPORT.print("now=");
     SERIALPORT.print(nowTS.tv_sec);
     SERIALPORT.print(" rtt=");
     SERIALPORT.print(rtt);
-
-    ms_delta = (nowTS.tv_sec - startTS.tv_sec) * 1000 + (nowTS.tv_msec - startTS.tv_msec);
-    if(ms_delta == 0) {
-      ms_delta = 1;
-    }
-    ppm_error = offset * 1000000 / ms_delta;
-    SERIALPORT.print(" drift=");
-    SERIALPORT.print(offset);
     SERIALPORT.print(" ppm=");
-    SERIALPORT.print(ppm_error);
+    SERIALPORT.print(clock_error * 1000000);
+    SERIALPORT.print(" offset=");
+    SERIALPORT.print(offset);
+    SERIALPORT.print(" raw=");
+    SERIALPORT.print(raw_offset);
     SERIALPORT.print(" delta=");
     SERIALPORT.println(ms_delta);
+
+    SERIALPORT.print(ClockPID.p());
+    SERIALPORT.print(",");
+    SERIALPORT.print(ClockPID.i());
+    SERIALPORT.print(",");
+    SERIALPORT.print(ClockPID.d() * 1000000);
+    SERIALPORT.print(",");
+    SERIALPORT.print(ClockPID.d_chi() * 1000000);
+    SERIALPORT.print(",");
+    SERIALPORT.print(ClockPID.out() * 1000000);
+    SERIALPORT.print(",");
+    SERIALPORT.print(ClockPID.p_out() * 1000000);
+    SERIALPORT.print(",");
+    SERIALPORT.print(ClockPID.i_out() * 1000000);
+    SERIALPORT.print(",");
+    SERIALPORT.println(ClockPID.d_out() * 1000000);
   }
 }
 
 void loop() {
+  struct timems startTS;
   TimeChangeRule *tcr;
   time_t last_t = 0, local, next_ntp;
 
@@ -293,7 +326,7 @@ void loop() {
       if(
         ((afterSleepTS.tv_sec == nowTS.tv_sec) && (afterSleepTS.tv_msec < 990)) || 
         (afterSleepTS.tv_sec > nowTS.tv_sec+1) ||
-        (afterSleepTS.tv_msec > 100)
+        ((afterSleepTS.tv_sec != nowTS.tv_sec) && (afterSleepTS.tv_msec > 100))
         ) { // print a warning if we slept too long or too short
         SERIALPORT.print("unexpected return from sleep! before (");
         SERIALPORT.print(nowTS.tv_sec);
