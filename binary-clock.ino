@@ -257,7 +257,7 @@ void ntp_loop(bool ActuallySetTime) {
 
     ms_delta = nowTS.raw_millis - startLocalTS.raw_millis;
     ntp.getRemoteTS(&remoteTS);
-    if((startLocalTS.tv_sec == 0) || (ms_delta > 2140000000)) {
+    if((startLocalTS.tv_sec == 0) || (ms_delta > 2140000000)) { // reset clock on startup and when it gets close to wrapping at 2^31
       startLocalTS.tv_sec = nowTS.tv_sec;
       startLocalTS.tv_msec = nowTS.tv_msec;
       startLocalTS.raw_millis = nowTS.raw_millis;
@@ -359,8 +359,14 @@ void loop() {
     time_print(local, tcr->abbrev);
 
     if((last_t.tv_sec > next_ntp) && ((second(local) % 10) != 0)) { // repoll on seconds not ending in 0
+      struct timems beforeNTP, afterNTP;
+      now_ms(&beforeNTP);
       ntp_loop(false);
       next_ntp = last_t.tv_sec + NTP_INTERVAL;
+      now_ms(&afterNTP);
+      SERIALPORT.print("ntp took ");
+      SERIALPORT.print(ts_interval(&beforeNTP, &afterNTP));
+      SERIALPORT.println("ms");
     }
   }
 }
