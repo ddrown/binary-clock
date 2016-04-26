@@ -255,7 +255,7 @@ void ntp_loop(bool ActuallySetTime) {
     int32_t ppm_error;
     now_ms(&nowTS);
 
-    ms_delta = ts_interval(&startLocalTS, &nowTS);
+    ms_delta = nowTS.raw_millis - startLocalTS.raw_millis;
     ntp.getRemoteTS(&remoteTS);
     if((startLocalTS.tv_sec == 0) || (ms_delta > 2140000000)) {
       startLocalTS.tv_sec = nowTS.tv_sec;
@@ -309,7 +309,11 @@ void ntp_loop(bool ActuallySetTime) {
 void loop() {
   struct timems startTS;
   TimeChangeRule *tcr;
-  time_t last_t = 0, local, next_ntp;
+  struct timems last_t;
+  time_t local, next_ntp;
+  
+  last_t.tv_sec = 0;
+  last_t.tv_msec = 0;
 
   ntp_loop(true); // set time, TODO: what if this fails?
   next_ntp = now() + NTP_INTERVAL;
@@ -318,7 +322,7 @@ void loop() {
   while(1) {
     struct timems nowTS;
     now_ms(&nowTS);
-    if(nowTS.tv_sec == last_t) {
+    if(nowTS.tv_sec == last_t.tv_sec) {
       struct timems afterSleepTS;
       uint32_t sleeptime = 1000 - nowTS.tv_msec;  // sleep till next second
       delay(sleeptime);
@@ -342,22 +346,21 @@ void loop() {
     } else { // in case of wierdness
       SERIALPORT.print("now(");
       SERIALPORT.print(nowTS.tv_sec);
-      SERIALPORT.print(") != last(");
-      SERIALPORT.print(last_t);
-      SERIALPORT.println(")");
+      SERIALPORT.print("s ");
+      SERIALPORT.print(nowTS.tv_msec);
+      SERIALPORT.print("ms) != last(");
+      SERIALPORT.print(last_t.tv_sec);
+      SERIALPORT.print("s ");
+      SERIALPORT.print(last_t.tv_msec);
+      SERIALPORT.println("ms)");
     }
-    last_t = now();
-    //startms = millis();
-    // TODO: configure timezone
-    local = TIMEZONE.toLocal(last_t, &tcr);
+    now_ms(&last_t);
+    local = TIMEZONE.toLocal(last_t.tv_sec, &tcr);
     time_print(local, tcr->abbrev);
-    /*endms = millis();
-    SERIALPORT.print("LCD took ");
-    SERIALPORT.println(endms-startms); */
 
-    if((last_t > next_ntp) && ((second(local) % 10) != 0)) { // repoll on seconds not ending in 0
+    if((last_t.tv_sec > next_ntp) && ((second(local) % 10) != 0)) { // repoll on seconds not ending in 0
       ntp_loop(false);
-      next_ntp = last_t + NTP_INTERVAL;
+      next_ntp = last_t.tv_sec + NTP_INTERVAL;
     }
   }
 }
