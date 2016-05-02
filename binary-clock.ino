@@ -310,13 +310,14 @@ void loop() {
   struct timems startTS;
   TimeChangeRule *tcr;
   struct timems last_t;
-  time_t local, next_ntp;
+  time_t local, next_ntp, fast_ntp_done;
   
   last_t.tv_sec = 0;
   last_t.tv_msec = 0;
 
   ntp_loop(true); // set time, TODO: what if this fails?
-  next_ntp = now() + NTP_INTERVAL;
+  next_ntp = now() + 64;
+  fast_ntp_done = now() + 64*4; // first 4 samples at 64s each
   now_ms(&startTS);
   
   while(1) {
@@ -343,16 +344,6 @@ void loop() {
         SERIALPORT.print("ms) sleeptime ");
         SERIALPORT.println(sleeptime);
       }
-    } else { // in case of wierdness
-      SERIALPORT.print("now(");
-      SERIALPORT.print(nowTS.tv_sec);
-      SERIALPORT.print("s ");
-      SERIALPORT.print(nowTS.tv_msec);
-      SERIALPORT.print("ms) != last(");
-      SERIALPORT.print(last_t.tv_sec);
-      SERIALPORT.print("s ");
-      SERIALPORT.print(last_t.tv_msec);
-      SERIALPORT.println("ms)");
     }
     now_ms(&last_t);
     local = TIMEZONE.toLocal(last_t.tv_sec, &tcr);
@@ -362,7 +353,11 @@ void loop() {
       struct timems beforeNTP, afterNTP;
       now_ms(&beforeNTP);
       ntp_loop(false);
-      next_ntp = last_t.tv_sec + NTP_INTERVAL;
+      if(last_t.tv_sec > fast_ntp_done) {
+        next_ntp = last_t.tv_sec + NTP_INTERVAL;
+      } else {
+        next_ntp = last_t.tv_sec + 64;
+      }
       now_ms(&afterNTP);
       SERIALPORT.print("ntp took ");
       SERIALPORT.print(ts_interval(&beforeNTP, &afterNTP));
